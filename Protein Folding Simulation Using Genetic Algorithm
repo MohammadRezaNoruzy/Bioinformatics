@@ -2,29 +2,29 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 
-# دریافت اطلاعات اولیه از کاربر
+# Function to get user input
 def get_user_input():
-    sequence = input("توالی پروتئین را وارد کنید (مثل HHHPHPPHH): ").strip().upper()
+    sequence = input("Enter the protein sequence (e.g., HHHPHPPHH): ").strip().upper()
     while not all(c in ['H', 'P'] for c in sequence) or len(sequence) < 2:
-        print("توالی باید فقط شامل H و P باشد و حداقل طول ۲ داشته باشد.")
-        sequence = input("لطفاً دوباره توالی را وارد کنید: ").strip().upper()
+        print("The sequence must contain only H and P and have at least length 2.")
+        sequence = input("Please enter the sequence again: ").strip().upper()
     
-    pop_size = int(input("(Population Size) را وارد کنید: "))
+    pop_size = int(input("Enter Population Size: "))
     while pop_size <= 0:
-        print("Population Size باید بزرگ‌تر از ۰ باشد.")
-        pop_size = int(input("(Population Size) را وارد کنید: "))
+        print("Population Size must be greater than 0.")
+        pop_size = int(input("Enter Population Size again: "))
     
-    num_generations = int(input("تعداد نسل را وارد کنید: "))
+    num_generations = int(input("Enter Number of Generations: "))
     while num_generations <= 0:
-        print("تعداد نسل باید بزرگ‌تر از ۰ باشد.")
-        num_generations = int(input("لطفاً دوباره تعداد نسل را وارد کنید: "))
+        print("Number of Generations must be greater than 0.")
+        num_generations = int(input("Enter Number of Generations again: "))
     
     return sequence, pop_size, num_generations
 
-# جهت‌ها برای کدگذاری نسبی
+# Possible movement directions
 directions = ['U', 'D', 'L', 'R']
 
-# تبدیل جهت به مختصات شبکه
+# Function to convert direction to grid coordinates
 def move(pos, direction):
     x, y = pos
     if direction == 'U': return (x, y+1)
@@ -32,7 +32,7 @@ def move(pos, direction):
     if direction == 'L': return (x-1, y)
     if direction == 'R': return (x+1, y)
 
-# بررسی خودداری از تقاطع (Self-Avoiding Walk)
+# Check for self-avoiding walk
 def self_avoiding_walk(fold):
     visited = set()
     pos = (0, 0)
@@ -44,10 +44,10 @@ def self_avoiding_walk(fold):
         visited.add(pos)
     return True 
 
-# محاسبه انرژی 
+# Calculate energy based on HP model
 def calculate_energy(sequence, fold):
     if not self_avoiding_walk(fold):
-        return float('inf') 
+        return float('inf')  # Invalid path
 
     positions = [(0, 0)]
     for direction in fold:
@@ -65,7 +65,7 @@ def calculate_energy(sequence, fold):
     
     return energy
 
-# تولید جمعیت اولیه
+# Generate initial population
 def generate_population(pop_size, sequence):
     population = []
     for _ in range(pop_size):
@@ -73,7 +73,7 @@ def generate_population(pop_size, sequence):
         population.append(fold)
     return population
 
-# انتخاب والدین
+# Select parents for crossover
 def select_parents(population, sequence):
     fitness = [calculate_energy(sequence, fold) for fold in population]
     finite_fitness = [f if f != float('inf') else 1e10 for f in fitness]
@@ -83,13 +83,13 @@ def select_parents(population, sequence):
     parent2 = random.choices(population, probabilities)[0]
     return parent1, parent2
 
-# تولید فرزندان
+# Crossover function to create offspring
 def crossover(parent1, parent2):
     crossover_point = random.randint(1, len(parent1) - 1)
     child = parent1[:crossover_point] + parent2[crossover_point:]
     return child
 
-# جهت جهش
+# Mutation function
 def mutate(fold):
     mutated_fold = fold.copy()
     for i in range(len(mutated_fold)):
@@ -97,7 +97,7 @@ def mutate(fold):
             mutated_fold[i] = random.choice(directions)
     return mutated_fold 
 
-# الگوریتم ژنتیک
+# Genetic Algorithm for protein folding
 def genetic_algorithm(sequence, pop_size, num_generations):
     population = generate_population(pop_size, sequence)
     
@@ -120,7 +120,7 @@ def genetic_algorithm(sequence, pop_size, num_generations):
     
     return best_fold, best_energy
 
-# نمایش پروتئین
+# Function to visualize protein folding
 def visualize_fold(sequence, fold):
     positions = [(0, 0)]
     for direction in fold:
@@ -134,7 +134,7 @@ def visualize_fold(sequence, fold):
     plt.title(f"Energy: {calculate_energy(sequence, fold)}")
     plt.show()
 
-# اجرای الگوریتم
+# Run the Genetic Algorithm
 if __name__ == "__main__":
     sequence, pop_size, num_generations = get_user_input()
     best_fold, best_energy = genetic_algorithm(sequence, pop_size, num_generations)
