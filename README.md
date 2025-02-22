@@ -58,10 +58,8 @@ The **Genetic Algorithm** follows these steps:
 7. **Return** the best fold with the lowest energy
 
 ## License
-This project is **open-source** under the MIT License.
+This project is **open-source** 
 
-## Contribution
-Feel free to contribute by creating **pull requests** or **reporting issues**!
 
 ---
 
