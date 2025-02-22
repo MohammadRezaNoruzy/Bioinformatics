@@ -1,0 +1,147 @@
+import numpy as np
+import random
+import matplotlib.pyplot as plt
+
+# دریافت اطلاعات اولیه از کاربر
+def get_user_input():
+    sequence = input("توالی پروتئین را وارد کنید (مثل HHHPHPPHH): ").strip().upper()
+    while not all(c in ['H', 'P'] for c in sequence) or len(sequence) < 2:
+        print("توالی باید فقط شامل H و P باشد و حداقل طول ۲ داشته باشد.")
+        sequence = input("لطفاً دوباره توالی را وارد کنید: ").strip().upper()
+    
+    pop_size = int(input("(Population Size) را وارد کنید: "))
+    while pop_size <= 0:
+        print("Population Size باید بزرگ‌تر از ۰ باشد.")
+        pop_size = int(input("(Population Size) را وارد کنید: "))
+    
+    num_generations = int(input("تعداد نسل را وارد کنید: "))
+    while num_generations <= 0:
+        print("تعداد نسل باید بزرگ‌تر از ۰ باشد.")
+        num_generations = int(input("لطفاً دوباره تعداد نسل را وارد کنید: "))
+    
+    return sequence, pop_size, num_generations
+
+# جهت‌ها برای کدگذاری نسبی
+directions = ['U', 'D', 'L', 'R']
+
+# تبدیل جهت به مختصات شبکه
+def move(pos, direction):
+    x, y = pos
+    if direction == 'U': return (x, y+1)
+    if direction == 'D': return (x, y-1)
+    if direction == 'L': return (x-1, y)
+    if direction == 'R': return (x+1, y)
+
+# بررسی خودداری از تقاطع (Self-Avoiding Walk)
+def self_avoiding_walk(fold):
+    visited = set()
+    pos = (0, 0)
+    visited.add(pos)
+    for direction in fold:
+        pos = move(pos, direction)
+        if pos in visited:
+            return False
+        visited.add(pos)
+    return True 
+
+# محاسبه انرژی 
+def calculate_energy(sequence, fold):
+    if not self_avoiding_walk(fold):
+        return float('inf') 
+
+    positions = [(0, 0)]
+    for direction in fold:
+        positions.append(move(positions[-1], direction))
+    
+    energy = 0
+    n = len(sequence)
+    for i in range(n):
+        if sequence[i] == 'H':
+            for j in range(i+2, n):
+                if sequence[j] == 'H':
+                    distance = abs(positions[i][0] - positions[j][0]) + abs(positions[i][1] - positions[j][1])
+                    if distance == 1:
+                        energy += 1
+    
+    return energy
+
+# تولید جمعیت اولیه
+def generate_population(pop_size, sequence):
+    population = []
+    for _ in range(pop_size):
+        fold = [random.choice(directions) for _ in range(len(sequence)-1)]
+        population.append(fold)
+    return population
+
+# انتخاب والدین
+def select_parents(population, sequence):
+    fitness = [calculate_energy(sequence, fold) for fold in population]
+    finite_fitness = [f if f != float('inf') else 1e10 for f in fitness]
+    total_fitness = sum(finite_fitness) if sum(finite_fitness) > 0 else 1
+    probabilities = [f/total_fitness for f in finite_fitness]
+    parent1 = random.choices(population, probabilities)[0]
+    parent2 = random.choices(population, probabilities)[0]
+    return parent1, parent2
+
+# تولید فرزندان
+def crossover(parent1, parent2):
+    crossover_point = random.randint(1, len(parent1) - 1)
+    child = parent1[:crossover_point] + parent2[crossover_point:]
+    return child
+
+# جهت جهش
+def mutate(fold):
+    mutated_fold = fold.copy()
+    for i in range(len(mutated_fold)):
+        if random.random() < 0.1:
+            mutated_fold[i] = random.choice(directions)
+    return mutated_fold 
+
+# الگوریتم ژنتیک
+def genetic_algorithm(sequence, pop_size, num_generations):
+    population = generate_population(pop_size, sequence)
+    
+    for _ in range(num_generations):
+        fitness = [calculate_energy(sequence, fold) for fold in population]
+        new_population = []
+        elite_idx = np.argmin(fitness)
+        new_population.append(population[elite_idx])
+        
+        while len(new_population) < pop_size:
+            parent1, parent2 = select_parents(population, sequence)
+            child = crossover(parent1, parent2)
+            child = mutate(child)
+            new_population.append(child)
+        
+        population = new_population
+
+    best_fold = population[np.argmin([calculate_energy(sequence, fold) for fold in population])]
+    best_energy = calculate_energy(sequence, best_fold)
+    
+    return best_fold, best_energy
+
+# نمایش پروتئین
+def visualize_fold(sequence, fold):
+    positions = [(0, 0)]
+    for direction in fold:
+        positions.append(move(positions[-1], direction))
+    
+    x, y = zip(*positions)
+    plt.plot(x, y, '-o')
+    for i, (xi, yi) in enumerate(positions):
+        plt.text(xi, yi, sequence[i], fontsize=12)
+    plt.grid(True)
+    plt.title(f"Energy: {calculate_energy(sequence, fold)}")
+    plt.show()
+
+# اجرای الگوریتم
+if __name__ == "__main__":
+    sequence, pop_size, num_generations = get_user_input()
+    best_fold, best_energy = genetic_algorithm(sequence, pop_size, num_generations)
+    
+    if best_energy == float('inf'):
+        print("No valid fold found!")
+    else:
+        print(f"Best Fold: {best_fold}")
+        print(f"Best Energy: {best_energy}")
+        visualize_fold(sequence, best_fold)
