@@ -1,0 +1,204 @@
+import random
+import numpy as np
+from colorama import init, Fore, Style
+from typing import List, Tuple
+import os
+
+# Initialize colorama for colored output
+init()
+
+# Scoring constants
+MATCH_SCORE = 2
+MISMATCH_SCORE = -1
+GAP_PENALTY = -2
+
+def read_fasta(file_path: str) -> List[Tuple[str, str]]:
+    """Read sequences from a FASTA file."""
+    sequences = []
+    current_seq = ""
+    current_id = ""
+    
+    with open(file_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('>'):
+                if current_seq:
+                    sequences.append((current_id, current_seq))
+                    current_seq = ""
+                current_id = line[1:]
+            else:
+                current_seq += line
+        if current_seq:  # Don't forget the last sequence
+            sequences.append((current_id, current_seq))
+    
+    return sequences
+
+def initialize_population(sequences: List[str], pop_size: int) -> List[List[str]]:
+    """Initialize population with random gaps."""
+    max_len = max(len(seq) for seq in sequences)
+    population = []
+    
+    for _ in range(pop_size):
+        individual = []
+        for seq in sequences:
+            gaps_to_add = max_len - len(seq)
+            aligned_seq = list(seq)
+            # Randomly insert gaps
+            for _ in range(gaps_to_add):
+                pos = random.randint(0, len(aligned_seq))
+                aligned_seq.insert(pos, '-')
+            individual.append(''.join(aligned_seq))
+        population.append(individual)
+    
+    return population
+
+def calculate_fitness(alignment: List[str]) -> int:
+    """Calculate fitness score for an alignment."""
+    score = 0
+    alignment_len = len(alignment[0])
+    
+    for i in range(alignment_len):
+        column = [seq[i] for seq in alignment]
+        for j in range(len(column)):
+            for k in range(j + 1, len(column)):
+                if column[j] == column[k]:
+                    if column[j] != '-':
+                        score += MATCH_SCORE
+                elif column[j] == '-' or column[k] == '-':
+                    score += GAP_PENALTY
+                else:
+                    score += MISMATCH_SCORE
+    
+    return score
+
+def crossover(parent1: List[str], parent2: List[str]) -> Tuple[List[str], List[str]]:
+    """Perform crossover between two parents."""
+    crossover_point = random.randint(0, len(parent1[0]))
+    child1 = []
+    child2 = []
+    
+    for seq1, seq2 in zip(parent1, parent2):
+        child1.append(seq1[:crossover_point] + seq2[crossover_point:])
+        child2.append(seq2[:crossover_point] + seq1[crossover_point:])
+    
+    return child1, child2
+
+def mutate(alignment: List[str], mutation_rate: float) -> List[str]:
+    """Mutate an alignment by shifting gaps."""
+    mutated = []
+    
+    for seq in alignment:
+        seq_list = list(seq)
+        if random.random() < mutation_rate:
+            # Find gap positions
+            gap_positions = [i for i, char in enumerate(seq_list) if char == '-']
+            if gap_positions and len(seq_list) > 1:
+                # Move a random gap
+                gap_pos = random.choice(gap_positions)
+                new_pos = random.randint(0, len(seq_list) - 1)
+                while new_pos == gap_pos:
+                    new_pos = random.randint(0, len(seq_list) - 1)
+                seq_list[gap_pos], seq_list[new_pos] = seq_list[new_pos], seq_list[gap_pos]
+        mutated.append(''.join(seq_list))
+    
+    return mutated
+
+def genetic_algorithm(sequences: List[str], pop_size: int = 100, 
+                     generations: int = 100, mutation_rate: float = 0.1) -> List[str]:
+    """Main GA function for MSA."""
+    # Initialize population
+    population = initialize_population(sequences, pop_size)
+    
+    for _ in range(generations):
+        # Calculate fitness for all individuals
+        fitness_scores = [calculate_fitness(ind) for ind in population]
+        
+        # Select top performers
+        elite_size = int(pop_size * 0.2)
+        elite_indices = np.argsort(fitness_scores)[-elite_size:]
+        new_population = [population[i] for i in elite_indices]
+        
+        # Generate rest of population through crossover and mutation
+        while len(new_population) < pop_size:
+            parent1, parent2 = random.sample(population, 2)
+            child1, child2 = crossover(parent1, parent2)
+            child1 = mutate(child1, mutation_rate)
+            child2 = mutate(child2, mutation_rate)
+            new_population.extend([child1, child2])
+        
+        population = new_population[:pop_size]
+    
+    # Return best alignment
+    fitness_scores = [calculate_fitness(ind) for ind in population]
+    best_index = np.argmax(fitness_scores)
+    return population[best_index]
+
+def print_colored_alignment(alignment: List[str], ids: List[str]):
+    """Print alignment with colored characters."""
+    conservation = []
+    alignment_len = len(alignment[0])
+    
+    # Calculate conservation for coloring
+    for i in range(alignment_len):
+        column = [seq[i] for seq in alignment]
+        if all(c == column[0] and c != '-' for c in column):
+            conservation.append('perfect')
+        elif '-' not in column:
+            conservation.append('mismatch')
+        else:
+            conservation.append('gap')
+    
+    # Print alignment
+    for id_, seq in zip(ids, alignment):
+        colored_seq = ""
+        for char, cons in zip(seq, conservation):
+            if cons == 'perfect':
+                colored_seq += Fore.GREEN + char + Style.RESET_ALL
+            elif cons == 'mismatch':
+                colored_seq += Fore.RED + char + Style.RESET_ALL
+            else:
+                colored_seq += Fore.YELLOW + char + Style.RESET_ALL
+        print(f"{id_:<20} {colored_seq}")
+
+def main(fasta_file: str):
+    """Main function to run MSA."""
+    # Read sequences
+    sequences_data = read_fasta(fasta_file)
+    ids = [seq[0] for seq in sequences_data]
+    sequences = [seq[1] for seq in sequences_data]
+    
+    print("Original sequences:")
+    for id_, seq in zip(ids, sequences):
+        print(f"{id_:<20} {seq}")
+    print("\nPerforming MSA...\n")
+    
+    # Run GA
+    alignment = genetic_algorithm(sequences)
+    
+    # Print results
+    print("Aligned sequences:")
+    print_colored_alignment(alignment, ids)
+    
+    # Calculate and print final score
+    final_score = calculate_fitness(alignment)
+    print(f"\nFinal alignment score: {final_score}")
+
+if __name__ == "__main__":
+    # Example usage with a sample FASTA file
+    sample_fasta = """\
+>Sequence_1
+ATGCGATACGTTAG
+>Sequence_2
+ATGCGTTAG
+>Sequence_3
+ATGCGATACGTTAG
+>Sequence_4
+ATGCGATAG
+>Sequence_5
+ATGCGATACGTTAG
+"""
+    with open("sample.fasta", "w") as f:
+        f.write(sample_fasta)
+    
+    main("sample.fasta")
+    os.remove("sample.fasta")  # Clean up
