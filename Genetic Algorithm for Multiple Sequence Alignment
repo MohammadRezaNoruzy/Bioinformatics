@@ -1,0 +1,25 @@
+Project Name: Genetic Algorithm for Multiple Sequence Alignment (GA-MSA)
+Description
+This project implements Multiple Sequence Alignment (MSA) using a Genetic Algorithm (GA) in Python. It takes DNA/protein sequences from a FASTA file and aligns them using evolutionary techniques. The alignment is evaluated using a fitness function that rewards matches and penalizes mismatches and gaps.
+
+The final alignment is displayed with colored characters, where:
+🟢 Green = Perfect match
+🔴 Red = Mismatch
+🟡 Yellow = Gaps
+
+Features
+✅ Reads sequences from a FASTA file 📄
+✅ Uses Genetic Algorithm (GA) for sequence alignment 🧬
+✅ Implements Selection, Crossover, and Mutation 🔄
+✅ Supports custom scoring for alignment evaluation ⚖️
+✅ Displays results with colored output using colorama 🎨
+
+Usage
+1️⃣ Add your sequences to a FASTA file.
+2️⃣ Run the Python script.
+3️⃣ The best-aligned sequences will be printed with their alignment score.
+
+Future Improvements
+🔹 Implement BLOSUM62 or other scoring matrices.
+🔹 Optimize mutation strategy for better convergence.
+🔹 Add gap penalty tuning for different sequence types.
