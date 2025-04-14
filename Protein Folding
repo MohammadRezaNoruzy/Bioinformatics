@@ -1,0 +1,184 @@
+import random
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Constants for limitations
+MIN_ENERGY = -100
+MAX_ENERGY = 0
+MAX_POP_SIZE = 1000
+MAX_GENERATIONS = 500
+
+def get_user_input():
+    """
+    Get protein sequence, population size, and number of generations from the user.
+    """
+    sequence = input("Enter the protein sequence (e.g., HHHPHPPHH): ").strip().upper()
+    while not all(c in ['H', 'P'] for c in sequence) or len(sequence) < 2:
+        print("Error: Sequence must contain only H and P, and be at least length 2.")
+        sequence = input("Please enter the sequence again: ").strip().upper()
+
+    pop_size = int(input("Enter population size: "))
+    while pop_size <= 0 or pop_size > MAX_POP_SIZE:
+        print(f"Population size must be between 1 and {MAX_POP_SIZE}.")
+        pop_size = int(input("Enter population size again: "))
+
+    num_generations = int(input("Enter number of generations: "))
+    while num_generations <= 0 or num_generations > MAX_GENERATIONS:
+        print(f"Number of generations must be between 1 and {MAX_GENERATIONS}.")
+        num_generations = int(input("Enter number of generations again: "))
+
+    return sequence, pop_size, num_generations
+
+# Possible directions for protein folding
+directions = ['U', 'D', 'L', 'R']
+
+def move(pos, direction):
+    x, y = pos
+    if direction == 'U': return (x, y + 1)
+    if direction == 'D': return (x, y - 1)
+    if direction == 'L': return (x - 1, y)
+    if direction == 'R': return (x + 1, y)
+
+def is_self_avoiding(fold):
+    """
+    Check if the given folding path is self-avoiding.
+    """
+    visited = set()
+    pos = (0, 0)
+    visited.add(pos)
+    for direction in fold:
+        pos = move(pos, direction)
+        if pos in visited:
+            return False
+        visited.add(pos)
+    return True
+
+def calculate_energy(sequence, fold):
+    """
+    Calculate the energy of a folding path based on H-H contacts.
+    """
+    if not is_self_avoiding(fold):
+        return float('inf')
+
+    positions = [(0, 0)]
+    for direction in fold:
+        positions.append(move(positions[-1], direction))
+
+    energy = 0
+    n = len(sequence)
+    for i in range(n):
+        if sequence[i] == 'H':
+            for j in range(i + 2, n):
+                if sequence[j] == 'H':
+                    dist = abs(positions[i][0] - positions[j][0]) + abs(positions[i][1] - positions[j][1])
+                    if dist == 1:
+                        energy -= 1
+
+    return max(MIN_ENERGY, min(MAX_ENERGY, energy))
+
+def generate_population(seq_len, size):
+    """
+    Generate an initial population of self-avoiding foldings.
+    """
+    population = []
+    while len(population) < size:
+        fold = [random.choice(directions) for _ in range(seq_len - 1)]
+        if is_self_avoiding(fold):
+            population.append(fold)
+    return population
+
+def crossover_valid(p1, p2):
+    """
+    Perform crossover while maintaining self-avoiding property.
+    """
+    for _ in range(20):
+        point = random.randint(1, len(p1) - 2)
+        child = p1[:point] + p2[point:]
+        if is_self_avoiding(child):
+            return child
+    return random.choice([p1, p2])
+
+def mutate_valid(fold):
+    """
+    Apply mutation ensuring the fold remains self-avoiding.
+    """
+    for _ in range(20):
+        mutated = fold[:]
+        idx = random.randint(0, len(mutated) - 1)
+        mutated[idx] = random.choice(directions)
+        if is_self_avoiding(mutated):
+            return mutated
+    return fold
+
+def genetic_algorithm(sequence, pop_size, num_generations):
+    """
+    Main genetic algorithm loop for protein folding.
+    """
+    population = generate_population(len(sequence), pop_size)
+    best_energy_history = []
+
+    for gen in range(num_generations):
+        fitness = [-calculate_energy(sequence, fold) for fold in population]
+        new_population = []
+
+        elite_idx = np.argmax(fitness)
+        new_population.append(population[elite_idx])
+        best_energy = calculate_energy(sequence, population[elite_idx])
+        best_energy_history.append(best_energy)
+
+        while len(new_population) < pop_size:
+            parent1 = random.choice(population)
+            parent2 = random.choice(population)
+            child = crossover_valid(parent1, parent2)
+
+            if random.random() < 0.1:
+                child = mutate_valid(child)
+
+            if is_self_avoiding(child):
+                new_population.append(child)
+
+        population = new_population
+
+    best_fold = population[np.argmax([-calculate_energy(sequence, fold) for fold in population])]
+    best_energy = calculate_energy(sequence, best_fold)
+    return best_fold, best_energy, best_energy_history
+
+def visualize_fold(sequence, fold, energy_history):
+    """
+    Plot the final protein folding path and energy evolution.
+    """
+    positions = [(0, 0)]
+    for direction in fold:
+        positions.append(move(positions[-1], direction))
+
+    plt.figure(figsize=(12, 5))
+
+    plt.subplot(1, 2, 1)
+    x, y = zip(*positions)
+    plt.plot(x, y, '-o', color='b')
+    for i, (xi, yi) in enumerate(positions):
+        plt.text(xi, yi, sequence[i], fontsize=12, ha='center', va='center', color='darkred')
+    plt.grid(True)
+    plt.title(f"Final Protein Folding (Energy: {calculate_energy(sequence, fold)})", fontsize=12)
+
+    plt.subplot(1, 2, 2)
+    plt.plot(energy_history, '-o', color='green')
+    plt.xlabel("Generation")
+    plt.ylabel("Best Energy")
+    plt.title("Evolution of Energy Over Generations", fontsize=12)
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == "__main__":
+    sequence, pop_size, num_generations = get_user_input()
+    print(f"\nInput Sequence: {sequence}")
+    print(f"Population Size: {pop_size}")
+    print(f"Number of Generations: {num_generations}\n")
+
+    best_fold, best_energy, energy_history = genetic_algorithm(sequence, pop_size, num_generations)
+    print(f"Best Folding Found: {best_fold}")
+    print(f"Final Energy: {best_energy}")
+
+    visualize_fold(sequence, best_fold, energy_history)
